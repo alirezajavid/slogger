@@ -4,6 +4,7 @@
 #include "Common.h"
 #include "JC_IDSRuleManager.h"
 #include "JC_IDSSensorManager.h"
+#include "JC_IDSActionManager.h"
 
 class JC_Preprocesseor_CEF_IDS: public JI_Preprocesseor_CEF {
 	public:
@@ -14,9 +15,11 @@ class JC_Preprocesseor_CEF_IDS: public JI_Preprocesseor_CEF {
 	private:
 		JC_IDSRuleManager * JP_RuleManage;
 		JC_IDSSensorManager * JP_SensorManage;
+		JC_IDSActionManager * JP_ActionManage;
 		int SensorID(const char * p, IP ip);
 		int ActionID(const char * p);
-		int GetMid(const char * message, int sid, const char * module);
+		int GetModule(const char * module);
+		int GetMid(const char * message, int sid, const char * module, int Severity, int anomaly);
 		JI_CgiLogger * JP_Logger;
 		JC_Config * JP_Config;
 };

@@ -32,7 +32,9 @@ bool Compare_IDS_Messages(void * p1, void * p2)
 	JS_IDS_Messages *_p1, *_p2;
 	_p1 = (JS_IDS_Messages *)p1;
 	_p2 = (JS_IDS_Messages *)p2;
-	return (strcmp(_p1->Message, _p2->Message) == 0) && (_p1->sid == _p2->sid);
+	return (strcmp(_p1->Message, _p2->Message) == 0) &&
+		   (_p1->sid == _p2->sid) &&
+		   (_p1->Severity == _p2->Severity);
 }
 void JC_IDSRuleManager::LoadLibrary()
 {
@@ -41,7 +43,7 @@ void JC_IDSRuleManager::LoadLibrary()
 	JS_IDS_Messages *p, tmp;
 	char KeyStr[200];
 	long k;
-	db->Query("SELECT distinct Message, sid, mid FROM dids_rules");
+	db->Query("SELECT distinct Message, sid, mid, severity FROM dids_rules");
 	while ((row = db->Read()) != NULL)
 	{
 		memset(KeyStr, 0, sizeof(KeyStr));
@@ -51,6 +53,7 @@ void JC_IDSRuleManager::LoadLibrary()
 		strcpy(tmp.Message, row->GetFieldText(1));
 		tmp.sid = row->GetFieldInt(2);
 		tmp.mid = row->GetFieldInt(3);
+		tmp.Severity = row->GetFieldInt(4);
 
 		p = (JS_IDS_Messages *)JP_IDSMessages->Get(k, sizeof(JS_IDS_Messages), &tmp, Compare_IDS_Messages);
 		memcpy(p, &tmp, sizeof(JS_IDS_Messages));
@@ -59,7 +62,7 @@ void JC_IDSRuleManager::LoadLibrary()
 	delete db;
 }
 //-----------------------------------------------------------------------------
-int JC_IDSRuleManager::GetMID(const char * message, int sid, const char * module)
+int JC_IDSRuleManager::GetMID(const char * message, int sid, const char * module, int Severity, int anomaly)
 {
 	JS_IDS_Messages *p, tmp;
 	char KeyStr[200];
@@ -70,24 +73,27 @@ int JC_IDSRuleManager::GetMID(const char * message, int sid, const char * module
 	k = JP_IDSMessages->Jhash(KeyStr, sizeof(KeyStr), 100);
 	strcpy(tmp.Message, message);
 	tmp.sid = sid;
+	tmp.Severity = Severity;
 	p = (JS_IDS_Messages *)JP_IDSMessages->Get(k, &tmp, Compare_IDS_Messages);
 	if (p)
 		return p->mid;
 	else
-		return AddNewMessage(message, sid, module);
+		return AddNewMessage(message, sid, module, Severity, anomaly);
 }
 //-----------------------------------------------------------------------------
-int JC_IDSRuleManager::AddNewMessage(const char * message, int sid, const char * module)
+int JC_IDSRuleManager::AddNewMessage(const char * message, int sid, const char * module, int Severity, int anomaly)
 {
 	MI_Database * db = GetDataBase(JP_Config, JP_Logger, JE_Database_Type_Oracle);
 	MI_DataBaseRow * row;
 	JS_IDS_Messages *p, tmp;
 	char KeyStr[200];
 	long k;
-	db->PreperSQL("INSERT INTO dids_rules (Message, sid, mid, MODULE) VALUES (?,?,RULES_MID_SEQ.NEXTVAL,?)");
+	db->PreperSQL("INSERT INTO dids_rules (Message, sid, mid, MODULE,Severity,type) VALUES (?,?,RULES_MID_SEQ.NEXTVAL,?,?,?)");
 	db->BindText(0, message);
 	db->BindInt(1, sid);
 	db->BindText(2, module);
+	db->BindInt(3, Severity);
+	db->BindInt(4, anomaly);
 	if (!db->Execute())
 	{
 		JP_Logger->Log("Could not Add New rule");
@@ -113,6 +119,7 @@ int JC_IDSRuleManager::AddNewMessage(const char * message, int sid, const char *
 	strncpy(KeyStr, message, sizeof(KeyStr) - 1);
 	k = JP_IDSMessages->Jhash(KeyStr, sizeof(KeyStr), 100);
 	strcpy(tmp.Message, message);
+	tmp.Severity = Severity;
 	tmp.sid = sid;
 	tmp.mid = mid;
 	p = (JS_IDS_Messages *)JP_IDSMessages->Get(k, sizeof(JS_IDS_Messages), &tmp, Compare_IDS_Messages);

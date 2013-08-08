@@ -53,8 +53,6 @@ bool JC_Config::LoadDatabseConfig() {
 	strcpy(JP_Config.Oracle.Password, inifile->GetVal("Oracle", "pass", ""));
 
 
-
-
 	p = inifile->GetVal("Provider", "Type", "");
 	if (!strcmp(p, "UDP"))
 		JP_App_Config.Provider.Type = JE_Provider_Type_UDP;
@@ -72,9 +70,16 @@ bool JC_Config::LoadDatabseConfig() {
 
 	JP_App_Config.Logger.DatabaseWrite =  (atoi(inifile->GetVal("Logger", "DatabaseWriter", ""))) > 0;
 	JP_App_Config.Logger.FileWrite =  (atoi(inifile->GetVal("Logger", "FileWriter", ""))) > 0;
-	JP_App_Config.Logger.BulkSize =  atoi(inifile->GetVal("Logger", "BulkSize", ""))?atoi(inifile->GetVal("Logger", "BulkSize", "")):1;
+	JP_App_Config.Logger.FastbitWrite =  (atoi(inifile->GetVal("Logger", "FastbitWrite", ""))) > 0;
+	JP_App_Config.Logger.OracleWrite =  (atoi(inifile->GetVal("Logger", "OracleWrite", ""))) > 0;
+	strcpy(JP_App_Config.Logger.FastbitPath, inifile->GetVal("Logger", "FastbitPath", ""));
+
+
+	JP_App_Config.Logger.OracleBulkSize =  atoi(inifile->GetVal("Logger", "OracleBulkSize", ""))?atoi(inifile->GetVal("Logger", "OracleBulkSize", "")):1;
+	JP_App_Config.Logger.FastbitBulkSize =  atoi(inifile->GetVal("Logger", "FastbitBulkSize", ""))?atoi(inifile->GetVal("Logger", "FastbitBulkSize", "")):1;
+
 	JP_App_Config.Logger.WriteRateStatisticsInterval =  atoi(inifile->GetVal("Logger", "WriteRateStatisticsInterval", ""));
-	JP_App_Config.Logger.WriteTopStatisticsInterval =  atoi(inifile->GetVal("Logger", "WriteTopStatisticsInterval", ""));
+	JP_App_Config.Logger.WriteRateStatisticsActionInterval =  atoi(inifile->GetVal("Logger", "WriteRateStatisticsActionInterval", ""));
 
 	strcpy(JP_App_Config.Logger.DestinationPath, inifile->GetVal("Logger", "DestinationPath", ""));
 	JP_App_Config.General.DeleteBeforeHours = atoi(inifile->GetVal("General", "DeleteBeforeHours", "24"));

@@ -35,6 +35,9 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include "ip.h"
+#include "array_t.h"
+#include "table.h"
+#include "ibis.h"
 
 #define MCONST_PREPARED_BUFF_SIZE1 40000
 #define MCONST_PROVIDER_BUFF_SIZE 1024
@@ -55,7 +58,7 @@
 #define JCONST_MAX_RULES		100
 #define JCONST_MAX_DEVICEINSECTION	10
 #define JCONST_MAX_NODE_NUMBER		30
-#define CHECK_PROTGRAM_TERMINATE	stat("/var/log/soc_logger/Logger.kill",&st) != -1
+#define CHECK_PROTGRAM_TERMINATE	false
 
 #define DB_VALTYPE_BYTE_RECEIVE		1
 #define DB_VALTYPE_BYTE_SEND		2
@@ -69,7 +72,6 @@
 #define DB_VALTYPE_IP_SRC		1
 #define DB_VALTYPE_IP_DST		0
 
-#define BUFLEN 1800
 #define EXP __FILE__,__FUNCTION__,__LINE__
 
 #define handle_error_en(en, msg) \
@@ -137,10 +139,18 @@ struct JS_App_Config {
 	struct {
 		bool FileWrite;
 		bool DatabaseWrite;
-		char DestinationPath[MCONST_MAXCHARBUF];
-		int  BulkSize;
+
+		bool FastbitWrite;
+		char FastbitPath[MCONST_MAXCHARBUF];
+		int  FastbitBulkSize;
+
+		bool OracleWrite;
+		int  OracleBulkSize;
+
 		unsigned int  WriteRateStatisticsInterval;
-		unsigned int  WriteTopStatisticsInterval;
+		unsigned int  WriteRateStatisticsActionInterval;
+
+		char DestinationPath[MCONST_MAXCHARBUF];
 	} Logger;
 
 	struct {
@@ -304,6 +314,8 @@ struct JS_DIDS {
 	int udpratep;
 	int icmpratep;
 	int otherratep;
+	int module;
+	char SEVERITY;
 	char anomaliy;
 	char direction;
 };
@@ -412,6 +424,12 @@ struct MS_DataProviderBuffer
 	IP DeviceIP;
 	ME_DataProviderType DataProviderType;
 	ME_ProviderLogType LogType;
+};
+//----------------------------------------------------------------------------------------
+struct MS_DataProviderBuffer_List
+{
+	MS_DataProviderBuffer Node;
+	MS_DataProviderBuffer_List * Next;
 };
 //----------------------------------------------------------------------------------------
 struct MS_PreparedDataForLogger

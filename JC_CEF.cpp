@@ -8,14 +8,11 @@ JC_CEF::JC_CEF() {
 //-----------------------------------------------------------------------------
 bool JC_CEF::Start(const char * str)
 {
-	JP_LogLength = str?strlen(str):0;
-	if ((JP_LogLength > 4) && (str[0]!='C'||str[1]!='E'||str[2]!='F'||str[3]!=':'))
+	if ((str && (strlen(str) > 4)) && (str[0]!='C'||str[1]!='E'||str[2]!='F'||str[3]!=':'))
 		return false;
 
 	JP_LogLength = strlen(str) + 1;
-
 	JP_Log = (char *)JGetMem(JP_LogLength);
-	memset(JP_Log, 0, JP_LogLength);
 	strncpy(JP_Log, str, strlen(str));
 	if (!Parse())
 		return false;
@@ -31,7 +28,8 @@ void JC_CEF::End()
 		JFreeMem(JP_Extension.at(i), sizeof(JP_CEFExtentionPair));
 	}
 	JP_Extension.clear();
-	JFreeMem(JP_Log, JP_LogLength);
+	if (JP_Log)
+		JFreeMem(JP_Log, JP_LogLength);
 }
 //-----------------------------------------------------------------------------
 int JC_CEF::GetVersion()
@@ -155,7 +153,6 @@ bool JC_CEF::Parse()
 		memset(pair->Value, 0, strlen(p + 1) + 1);
 		strcpy(pair->Value, p + 1);
 		JP_Extension.push_back(pair);
-
 
 		if (endofstring)
 			break;

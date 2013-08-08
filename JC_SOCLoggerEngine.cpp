@@ -120,7 +120,6 @@ void JC_SOCLoggerEngine::OnReciveData(MS_DataProviderBuffer* raw_buff)
 		for (int i=0; i<count; i++)
 		{
 		    MP_LogManager->Log(&PreparedBuffer[i]);
-			//printf("%d\n", i);
 		}
 }
 
@@ -138,7 +137,7 @@ void JC_SOCLoggerEngine::End()
 				((JC_DataProvider_TextFile *)JP_DataProvider)->End();
 				break;
 			case JE_Provider_Type_PCap:
-			//	((JC_DataProvider_PCap *)JP_DataProvider)->End();
+				((JC_DataProvider_PCap *)JP_DataProvider)->End();
 				break;
 			default:
 				JP_Logger->Log("DataProvider End method not implemented!");

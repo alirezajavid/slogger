@@ -20,21 +20,21 @@ void JC_RatesStatistics::Process(JS_DIDS * log)
 {
 	JS_Rate_Statistic * rec;
 	rec = (JS_Rate_Statistic *)JP_Hash->Get(log->SENSORID, sizeof(JS_Rate_Statistic), 0, 0);
-	rec->SensorID = log->SENSORID;
-	rec->ssize = log->ssize;
-	rec->size = log->size;
-	rec->pcount = log->pcount;
-	rec->tcprate = log->tcprate;
-	rec->udprate = log->udprate;
-	rec->icmprate = log->icmprate;
-	rec->orate = log->orate;
-	rec->serate = log->serate;
-	rec->usrate = log->usrate;
-	rec->secount = log->secount;
-	rec->uscount = log->uscount;
-	rec->tcpratep = log->tcprate;
-	rec->udpratep = log->udprate;
-	rec->icmpratep = log->icmpratep;
+	rec->SensorID 	= log->SENSORID;
+	rec->ssize		= log->ssize;
+	rec->size 		= log->size;
+	rec->pcount 	= log->pcount;
+	rec->tcprate 	= log->tcprate;
+	rec->udprate 	= log->udprate;
+	rec->icmprate 	= log->icmprate;
+	rec->orate 		= log->orate;
+	rec->serate 	= log->serate;
+	rec->usrate 	= log->usrate;
+	rec->secount 	= log->secount;
+	rec->uscount 	= log->uscount;
+	rec->tcpratep 	= log->tcpratep;
+	rec->udpratep 	= log->udpratep;
+	rec->icmpratep 	= log->icmpratep;
 	rec->otherratep = log->otherratep;
 
 }

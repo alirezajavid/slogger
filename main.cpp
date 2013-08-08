@@ -1,10 +1,3 @@
-/*
- * main.cpp
- *
- *  Created on: Sep 27, 2011
- *      Author: javid
- */
-#include "ip.h"
 #include "Common.h"
 #include "JC_SOCLoggerEngine.h"
 #include "MC_UTMProgramExecuter.h"
@@ -41,7 +34,6 @@ int main(int argc, char *argv[])
 
 	    MC_UTMProgramExecuter * executer = new MC_UTMProgramExecuter();
 	    executer->Start();
-	    struct stat st;
 	    while (true)
 	    {
 	    	if (CHECK_PROTGRAM_TERMINATE)

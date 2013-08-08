@@ -49,6 +49,7 @@ void JC_IDSActionManager::LoadLibrary()
 
 		k = JP_IDSActions->Jhash(KeyStr, sizeof(KeyStr), 100);
 		strcpy(tmp.Action, row->GetFieldText(2));
+		tmp.id = row->GetFieldInt(1);
 
 		p = (JS_IDS_Action *)JP_IDSActions->Get(k, sizeof(JS_IDS_Action), &tmp, Compare_IDS_Alerts);
 		memcpy(p, &tmp, sizeof(JS_IDS_Action));
@@ -60,7 +61,7 @@ void JC_IDSActionManager::LoadLibrary()
 int JC_IDSActionManager::GetAction(const char * action)
 {
 	if (strcmp(action, "") == 0)
-		return 1;
+		return 2;
 
 	JS_IDS_Action *p, tmp;
 	char KeyStr[20];

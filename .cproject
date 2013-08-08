@@ -36,6 +36,7 @@
 							<tool id="cdt.managedbuild.tool.gnu.cpp.linker.exe.debug.194277018" name="GCC C++ Linker" superClass="cdt.managedbuild.tool.gnu.cpp.linker.exe.debug">
 								<option id="gnu.cpp.link.option.libs.1229272125" name="Libraries (-l)" superClass="gnu.cpp.link.option.libs" valueType="libs">
 									<listOptionValue builtIn="false" value="ocilib"/>
+									<listOptionValue builtIn="false" value="fastbit"/>
 									<listOptionValue builtIn="false" value="pcap"/>
 									<listOptionValue builtIn="false" value="mysqlclient"/>
 									<listOptionValue builtIn="false" value="pthread"/>

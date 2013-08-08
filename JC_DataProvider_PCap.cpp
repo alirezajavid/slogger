@@ -28,7 +28,6 @@ bool JC_DataProvider_PCap::BeginRecive()
 	char errBuf[MCONST_BUFF_SIZE];
 	const u_char *data;
 	struct pcap_pkthdr h;
-    struct stat st;
 
 
 	pcap_t* handle=pcap_open_offline(MP_Actor->Config()->GetConfig()->Provider.PCapFileName ,errBuf);
@@ -42,7 +41,7 @@ bool JC_DataProvider_PCap::BeginRecive()
 			break;
 
 		PcapHandlet(&h,data);
-		usleep(10000);
+		//usleep(1);
 		if (CHECK_PROTGRAM_TERMINATE)
 			break;
 	}

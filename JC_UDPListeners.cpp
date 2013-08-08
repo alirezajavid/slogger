@@ -5,18 +5,17 @@ JC_UDPListeners::JC_UDPListeners() {
 //-----------------------------------------------------------------------------
 bool JC_UDPListeners::Start(
 							pthread_mutex_t * cs_mutex,
-							JC_BufferQueue * buffers,
+							MS_DataProviderBuffer_List *  &buffers,
 							sem_t * sem,
 							unsigned int aPort,
 							ME_ProviderLogType processorType,
 							MI_DataProvider * DataProvider_UDP)
 {
 	JP_DataProvider_UDP = DataProvider_UDP;
-	JP_Buffers = buffers;
 	JP_Mutext = cs_mutex;
 	JP_Semaphore = sem;
 	JP_ProcessorType = processorType;
-	Bind(aPort);
+	Bind(aPort, buffers);
 	return true;
 }
 //-----------------------------------------------------------------------------
@@ -24,13 +23,12 @@ void JC_UDPListeners::End()
 {
 }
 //-----------------------------------------------------------------------------
-void JC_UDPListeners::Bind(unsigned short int aPort)
+void JC_UDPListeners::Bind(unsigned short int aPort, MS_DataProviderBuffer_List * &Buffers)
 {
-	long n = 0, h = 0, lt = -1;
+	long n = 0, h = 0, lt = -1, ft;
 	timeb tb;
 	unsigned char IN_BUFF[MCONST_PROVIDER_BUFF_SIZE];
-	MS_DataProviderBuffer * buf;
-	struct stat st;
+	MS_DataProviderBuffer_List * buf;
 	struct sockaddr_in si_me, si_other;
 	int s, slen=sizeof(si_other);
 	if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
@@ -61,6 +59,7 @@ void JC_UDPListeners::Bind(unsigned short int aPort)
 	int i=0;
 	ftime(&tb);
 	lt = tb.millitm + (tb.time & 0xfffff) * 1000;
+	ft = lt;
 	while (!terminate)
 	{
 		ftime(&tb);
@@ -68,37 +67,40 @@ void JC_UDPListeners::Bind(unsigned short int aPort)
 		{
 			FILE * fp = fopen("udpstat.txt", "a");
 			h += n;
-			fprintf(fp, "%lu received in %lu ms  Total:%lu \n", n, (tb.millitm + (tb.time & 0xfffff) * 1000) - lt, h);
+			fprintf(fp, "%lu received in %lu ms  Total:%lu  Avg:%d\n", n, (tb.millitm + (tb.time & 0xfffff) * 1000) - lt, h, (int)((h*1000)/((tb.millitm + (tb.time & 0xfffff) * 1000) - ft)));
 			fclose(fp);
 			lt = (tb.millitm + (tb.time & 0xfffff) * 1000);
 			n = 0;
 		};
 
-		memset(IN_BUFF, 0, sizeof(IN_BUFF));
-		i = recvfrom(s, IN_BUFF, BUFLEN, 0,(__SOCKADDR_ARG)&si_other, (socklen_t *__restrict)&slen);
+		memset(IN_BUFF, 0, MCONST_PROVIDER_BUFF_SIZE);
+		i = recvfrom(s, IN_BUFF, MCONST_PROVIDER_BUFF_SIZE, 0,(__SOCKADDR_ARG)&si_other, (socklen_t *__restrict)&slen);
 		if (i == -1)
+		{
+			//fprintf(stderr,"receive failed with error %d \n",errno);
 			continue;
+		}
 		n++;
 
-		pthread_mutex_lock(JP_Mutext);
+		buf = (MS_DataProviderBuffer_List *)JGetMem(sizeof(MS_DataProviderBuffer_List));
+		if(!buf)
+		{
+			fprintf(stderr, "Queue buffer is full or cannt get memory\n");
+			sem_post(JP_Semaphore);
+			continue;
+		}
 		if(CHECK_PROTGRAM_TERMINATE)
 			terminate = true;
-		buf = JP_Buffers->Get_Tail();
-		if (buf)
-		{
-			memcpy(buf->buf, IN_BUFF, i);
-			buf->DataProviderType = ME_DataProviderType_UDP;
-			buf->DeviceIP= htonl(si_other.sin_addr.s_addr);
-			buf->LogType = JP_ProcessorType;
+		memcpy(buf->Node.buf, IN_BUFF, i);
+		buf->Node.DataProviderType = ME_DataProviderType_UDP;
+		buf->Node.DeviceIP= htonl(si_other.sin_addr.s_addr);
+		buf->Node.LogType = JP_ProcessorType;
 
-			pthread_mutex_unlock(JP_Mutext);
-			sem_post(JP_Semaphore);
-		}
-		else
-		{
-			pthread_mutex_unlock(JP_Mutext);
-			printf("Queue buffer is full or cannt get memory\n");
-		}
+		pthread_mutex_lock(JP_Mutext);
+		buf->Next = Buffers;
+		Buffers = buf;
+		pthread_mutex_unlock(JP_Mutext);
+		sem_post(JP_Semaphore);
 	}
 	printf("Free port[%d].\n", aPort);
     close(s);

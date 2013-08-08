@@ -10,7 +10,6 @@
 
 #include "Common.h"
 #include "JC_UDPListeners.h"
-#include "JC_BufferQueue.h"
 
 class JC_DataProvider_UDP: public MI_DataProvider {
 	public:
@@ -26,7 +25,8 @@ class JC_DataProvider_UDP: public MI_DataProvider {
 
 		unsigned int JP_Port;
 		ME_ProviderLogType JP_ProcessorType;
-		JC_BufferQueue * JP_Buffers;
+		MS_DataProviderBuffer_List * JP_Buffers;
+
 
 
 
@@ -34,22 +34,31 @@ class JC_DataProvider_UDP: public MI_DataProvider {
 		{
 		    JC_DataProvider_UDP *_this=(JC_DataProvider_UDP *)data;
 		    pthread_mutex_t * mutex = &_this->JP_cs_mutex;
-		    struct stat st;
-		    void * p;
+		    MS_DataProviderBuffer_List * buffers, *q;
+
 
 		    bool terminate = false;
 		    while(!terminate)
 			{
 				sem_wait(&_this->JP_sem);
 				pthread_mutex_lock(mutex);
-				p = _this->JP_Buffers->Get_Head();
-				if (p) {
-					_this->MP_Actor->OnReciveData((MS_DataProviderBuffer*)p);
-					_this->JP_Buffers->pop();
+				buffers = _this->JP_Buffers;
+				_this->JP_Buffers = 0;
+				pthread_mutex_unlock(mutex);
+
+				int o=0;
+				while (buffers)
+				{
+					o++;
+					_this->MP_Actor->OnReciveData(&buffers->Node);
+					q = buffers;
+					buffers = buffers->Next;
+					JFreeMem(q, sizeof(MS_DataProviderBuffer_List));
 				}
+				if (o>1)
+					printf("==>%d\n",o);
 				if(CHECK_PROTGRAM_TERMINATE)
 					terminate = true;
-				pthread_mutex_unlock(mutex);
 			}
 			printf("End of consumers.\n");
 			return 0;
@@ -63,9 +72,11 @@ class JC_DataProvider_UDP: public MI_DataProvider {
 			unsigned int * port = (unsigned int *)JGetMem(sizeof(unsigned int));
 			if (!port)
 				return 0;
+
 			ME_ProviderLogType * prepType = (ME_ProviderLogType *)JGetMem(sizeof(ME_ProviderLogType));
 			if (!prepType)
 				return 0;
+
 			*port = _this->JP_Port;
 			*prepType = _this->JP_ProcessorType;
 

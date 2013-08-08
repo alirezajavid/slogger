@@ -1,84 +1,77 @@
 #include "JC_Logger_DatabaseWriter.h"
 
-JC_Logger_DatabaseWriter::JC_Logger_DatabaseWriter() {
+JC_Logger_DatabaseWriter::JC_Logger_DatabaseWriter():ta(ibis::tablex::create()) {
 	memset(&JP_IDS_Vector, 0, sizeof(JP_IDS_Vector));
 	JP_IDS_Vector_Index = 0;
+	JP_IDS_Vector_Cach = 0;
 }
 //-----------------------------------------------------------------------------
 bool JC_Logger_DatabaseWriter::Start(JI_CgiLogger * logger, JC_Config * config)
 {
-	JP_Logger = logger;
+    JP_Logger = logger;
 	JP_Config = config;
+
+	ibis::init();
 	JP_db = GetDataBase(JP_Config, JP_Logger, JE_Database_Type_Oracle);
 
-	//JP_Trends = new JC_TopTrender();
-	//if (!JP_Trends->Start(JP_Logger))
-	//{
-	//	JP_Logger->Log("Could not make Top Trender List.");
-	//	return false;
-	//}
-
-	JP_RatesStatistics = new JC_RatesStatistics();
+    JP_RatesStatistics = new JC_RatesStatistics();
 	if (!JP_RatesStatistics->Start(JP_Logger))
 	{
 		JP_Logger->Log("Could not make JP_RatesStatistics List.");
 		return false;
 	}
 
-	JP_IDS_Vector.ACTIONID 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.DT 		= (OCI_Date**)JGetMem(sizeof(OCI_Date*) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.MID 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.SENSORID 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.PROTOCOL 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.SIP 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.DIP 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.SPORT 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.DPORT 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.SCOUNTRY 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.DCOUNTRY 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.PACKET 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.BYTE 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JP_IDS_Vector.DIRECTION = (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
+	JP_RateActionStatistics = new JC_ActionsStatistics();
+	if (!JP_RateActionStatistics->Start(JP_Logger))
+	{
+		JP_Logger->Log("Could not make JP_RatesStatistics List.");
+		return false;
+	}
 
-	for (int i=0; i<JP_Config->GetConfig()->Logger.BulkSize; i++)
-		JP_IDS_Vector.DT[i] = OCI_DateCreate(NULL);
+	Create_IDS_Vector(&JP_IDS_Vector);
 
 	JP_RatesStatisticsLastTime = GetTickCount();
-	JP_TopStatisticsLastTime = GetTickCount();
+	JP_ActionStatisticsLastTime= GetTickCount();
+
+
+	ta->addColumn("DT",   		ibis::LONG);
+	ta->addColumn("MID",  		ibis::INT);
+	ta->addColumn("SENSORID",  	ibis::INT);
+	ta->addColumn("PROTOCOL",  	ibis::USHORT);
+	ta->addColumn("SIP",  		ibis::LONG);
+	ta->addColumn("DIP",  		ibis::LONG);
+	ta->addColumn("SPORT",  	ibis::USHORT);
+	ta->addColumn("DPORT",  	ibis::USHORT);
+	ta->addColumn("SCOUNTRY",  	ibis::USHORT);
+	ta->addColumn("DCOUNTRY",  	ibis::USHORT);
+	ta->addColumn("ACTIONID",  	ibis::USHORT);
+	ta->addColumn("PACKET",  	ibis::ULONG);
+	ta->addColumn("BYTE",  		ibis::ULONG);
+	ta->addColumn("DIRECTION",  ibis::USHORT);
+	ta->addColumn("SEVERITY",  	ibis::USHORT);
+	ta->addColumn("TYPE",  		ibis::USHORT);
+	ta->addColumn("MODULE",  	ibis::USHORT);
+	JP_LastHour = GetCurrentHour();
+    sprintf(JP_FastbitStorageDirectory, "%s/%s", JP_Config->GetConfig()->Logger.FastbitPath, SetNow(true));
+
 	return true;
 }
 //-----------------------------------------------------------------------------
 void JC_Logger_DatabaseWriter::End() {
 
-	for (int i=0; i<JP_Config->GetConfig()->Logger.BulkSize; i++)
-		 OCI_DateFree(JP_IDS_Vector.DT[i]);
+	Clear_IDS_Vector(&JP_IDS_Vector);
 
-	JFreeMem(JP_IDS_Vector.ACTIONID, 	sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.DT, 			sizeof(OCI_Date*) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.MID, 		sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.SENSORID, 	sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.PROTOCOL, 	sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.SIP, 		sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.DIP, 		sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.SPORT, 		sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.DPORT, 		sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.SCOUNTRY, 	sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.DCOUNTRY, 	sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.PACKET, 		sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.BYTE, 		sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
-	JFreeMem(JP_IDS_Vector.DIRECTION, 	sizeof(int) * JP_Config->GetConfig()->Logger.BulkSize);
+	if (JP_RateActionStatistics)
+	{
+		JP_RateActionStatistics->End();
+		delete JP_RateActionStatistics;
+	}
 
 	if (JP_RatesStatistics)
 	{
 		JP_RatesStatistics->End();
 		delete JP_RatesStatistics;
 	}
-
-	//if (JP_Trends)
-	//{
-	//	JP_Trends->End();
-	//	delete JP_Trends;
-	//}
 
 	if (JP_db)
 	{
@@ -113,6 +106,13 @@ bool JC_Logger_DatabaseWriter::Log(MS_PreparedDataForLogger* preProcessResult)
 	};
 
 	return true;
+}
+//-----------------------------------------------------------------------------
+int JC_Logger_DatabaseWriter::GetCurrentHour()
+{
+	time_t t = time(0);   // get time now
+    struct tm * now = localtime( & t );
+    return now->tm_hour;
 }
 //-----------------------------------------------------------------------------
 const char * JC_Logger_DatabaseWriter::SetNow(bool b = false)
@@ -474,23 +474,7 @@ bool JC_Logger_DatabaseWriter::LogIDSlogToFile()
 //-----------------------------------------------------------------------------
 bool JC_Logger_DatabaseWriter::prepareQuery_DIDS()
 {
-	long lng;
-	OCI_Statement	* st;
-	OCI_Error		* err;
-
 	LogIDSlogToFile();
-
-	/*
-	if (JP_Config->GetConfig()->Logger.WriteTopStatisticsInterval)
-    {
-    	JP_Trends->Process(&JP_Row->log.DIDS);
-		if ((GetTickCount() - JP_TopStatisticsLastTime) > (JP_Config->GetConfig()->Logger.WriteTopStatisticsInterval * 1000))
-		{
-			prepareQuery_DIDS_TopStatistics();
-			JP_TopStatisticsLastTime = GetTickCount();
-		}
-    }
-	*/
 
     if (JP_Config->GetConfig()->Logger.WriteRateStatisticsInterval)
     {
@@ -502,67 +486,23 @@ bool JC_Logger_DatabaseWriter::prepareQuery_DIDS()
 		}
     }
 
+    if (JP_Config->GetConfig()->Logger.WriteRateStatisticsActionInterval)
+    {
+    	JP_RateActionStatistics->Process(&JP_Row->log.DIDS);
+		if ((GetTickCount() - JP_ActionStatisticsLastTime) > (JP_Config->GetConfig()->Logger.WriteRateStatisticsActionInterval * 1000))
+		{
+			prepareQuery_DIDS_RateActionStatistics();
+			JP_ActionStatisticsLastTime = GetTickCount();
+		}
+    }
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
-	OCI_DateSysDate(JP_IDS_Vector.DT[JP_IDS_Vector_Index]);
-	JP_IDS_Vector.MID[JP_IDS_Vector_Index] 		 	= JP_Row->log.DIDS.MID;
-	JP_IDS_Vector.SENSORID[JP_IDS_Vector_Index] 	= JP_Row->log.DIDS.SENSORID;
-	JP_IDS_Vector.PROTOCOL[JP_IDS_Vector_Index] 	= JP_Row->log.DIDS.PROTOCOL;
-	JP_IDS_Vector.SIP[JP_IDS_Vector_Index] 			= JP_Row->log.DIDS.SIP;
-	JP_IDS_Vector.DIP[JP_IDS_Vector_Index] 			= JP_Row->log.DIDS.DIP;
-	JP_IDS_Vector.SPORT[JP_IDS_Vector_Index] 		= JP_Row->log.DIDS.SPORT;
-	JP_IDS_Vector.DPORT[JP_IDS_Vector_Index] 		= JP_Row->log.DIDS.DPORT;
-	JP_IDS_Vector.SCOUNTRY[JP_IDS_Vector_Index] 	= JP_Row->log.DIDS.SCOUNTRY;
-	JP_IDS_Vector.DCOUNTRY[JP_IDS_Vector_Index] 	= JP_Row->log.DIDS.DCOUNTRY;
-	JP_IDS_Vector.ACTIONID[JP_IDS_Vector_Index] 	= JP_Row->log.DIDS.ACTIONID;
-	JP_IDS_Vector.PACKET[JP_IDS_Vector_Index] 		= JP_Row->log.DIDS.PACKET;
-	JP_IDS_Vector.BYTE[JP_IDS_Vector_Index] 		= JP_Row->log.DIDS.BYTE;
-	JP_IDS_Vector.DIRECTION[JP_IDS_Vector_Index] 		= JP_Row->log.DIDS.direction;
-	JP_IDS_Vector_Index++;
-	if (JP_IDS_Vector_Index == JP_Config->GetConfig()->Logger.BulkSize)
-	{
-		lng = GetTickCount();
-		JP_IDS_Vector_Index = 0;
+	if (JP_Config->GetConfig()->Logger.FastbitWrite)
+		FastbitLogger();
 
-		if (!JP_db->PreperSQL("INSERT INTO dids_ATTACKS(DT,MID,SENSORID,PROTOCOL,SIP,DIP,SPORT,DPORT,SCOUNTRY,DCOUNTRY,ACTIONID,PACKET,BYTE,DIRECTION) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"))
-		{
-			JP_Logger->Log("Could not Prepare Statement", EXP);
-			return false;
-		}
+	if (JP_Config->GetConfig()->Logger.OracleWrite)
+		OracleLogger();
 
-		st = ((MC_Oracle *)JP_db)->Get_Statement();
-		OCI_BindArraySetSize(st, JP_Config->GetConfig()->Logger.BulkSize);
-
-		OCI_BindArrayOfDates  (st, ":p0", (OCI_Date**)JP_IDS_Vector.DT, 0);
-		OCI_BindArrayOfInts   (st, ":p1", (int*)  JP_IDS_Vector.MID, 0);
-		OCI_BindArrayOfInts   (st, ":p2", (int*)  JP_IDS_Vector.SENSORID, 0);
-
-		OCI_BindArrayOfInts   (st, ":p3", (int*)  JP_IDS_Vector.PROTOCOL, 0);
-		OCI_BindArrayOfUnsignedInts   (st, ":p4", (unsigned int*)  JP_IDS_Vector.SIP, 0);
-		OCI_BindArrayOfUnsignedInts   (st, ":p5", (unsigned int*)  JP_IDS_Vector.DIP, 0);
-		OCI_BindArrayOfInts   (st, ":p6", (int*)  JP_IDS_Vector.SPORT, 0);
-		OCI_BindArrayOfInts   (st, ":p7", (int*)  JP_IDS_Vector.DPORT, 0);
-		OCI_BindArrayOfInts   (st, ":p8", (int*)  JP_IDS_Vector.SCOUNTRY, 0);
-		OCI_BindArrayOfInts   (st, ":p9", (int*)  JP_IDS_Vector.DCOUNTRY, 0);
-		OCI_BindArrayOfInts   (st, ":p10", (int*)  JP_IDS_Vector.ACTIONID, 0);
-		OCI_BindArrayOfInts   (st, ":p11", (int*)  JP_IDS_Vector.PACKET, 0);
-		OCI_BindArrayOfInts   (st, ":p12", (int*)  JP_IDS_Vector.BYTE, 0);
-		OCI_BindArrayOfInts   (st, ":p13", (int*)  JP_IDS_Vector.DIRECTION, 0);
-
-		if (!OCI_Execute(st))
-		{
-		    JP_Logger->Log("Number of DML array errors : %d\n", OCI_GetBatchErrorCount(st));
-			err = OCI_GetBatchError(st);
-			while (err)
-			{
-			    JP_Logger->Log("Error at row %d : %s\n", OCI_ErrorGetRow(err), OCI_ErrorGetString(err));
-				err = OCI_GetBatchError(st);
-			}
-			return false;
-		}
-		JP_db->Finalize();
-	    JP_Logger->Log("logging %d records in %lu ms.", JP_Config->GetConfig()->Logger.BulkSize, GetTickCount() - lng);
-	}
 	return true;
 }
 //-----------------------------------------------------------------------------
@@ -610,36 +550,27 @@ bool JC_Logger_DatabaseWriter::prepareQuery_DIDS_RateStatistics()
 	return true;
 }
 //-----------------------------------------------------------------------------
-bool JC_Logger_DatabaseWriter::prepareQuery_DIDS_TopStatistics()
+bool JC_Logger_DatabaseWriter::prepareQuery_DIDS_RateActionStatistics()
 {
-	/*
-
 	long lng;
 	OCI_Statement	* st;
 
-	JS_Statistic_DB_Logs * ls;
+	JS_Action_Statistic_DB_Logs * ls;
 	lng = GetTickCount();
-    if (!JP_db->PreperSQL("INSERT INTO dids_TOPS (DT,TYPE,KEY,ACTIONS,MID,DCOUNTRY,SCOUNTRY,DIP,SIP,DPORT,PACKETS,BYTES,COUNT) VALUES(SYSDATE,?,?,?,?,?,?,?,?,?,?,?,?)"))
+    if (!JP_db->PreperSQL("INSERT INTO DIDS_RATE_ACTIONS (DT,SENSORID,ACTION,PACKETS,BYTES,COUNT)VALUES(SYSDATE,?,?,?,?,?)"))
 	{
 		JP_Logger->Log("Could not Prepare Statement", EXP);
 		return false;
 	}
 	st = ((MC_Oracle *)JP_db)->Get_Statement();
-	ls = JP_Trends->GetLists();
+	ls = JP_RateActionStatistics->GetLists();
 
-	OCI_BindArraySetSize(st, JP_Trends->GetDBLogSize());
-	OCI_BindArrayOfInts   (st, ":p0", (int*)  ls->Type, 0);
-	OCI_BindArrayOfInts   (st, ":p1", (int*)  ls->Key, 0);
-	OCI_BindArrayOfInts   (st, ":p2", (int*)  ls->N_Actions, 0);
-	OCI_BindArrayOfInts   (st, ":p3", (int*)  ls->N_MID, 0);
-	OCI_BindArrayOfInts   (st, ":p4", (int*)  ls->N_DCountry, 0);
-	OCI_BindArrayOfInts   (st, ":p5", (int*)  ls->N_SCountry, 0);
-	OCI_BindArrayOfUnsignedInts   (st, ":p6", (unsigned int*)  ls->N_DIP, 0);
-	OCI_BindArrayOfUnsignedInts   (st, ":p7", (unsigned int*)  ls->N_SIP, 0);
-	OCI_BindArrayOfInts   (st, ":p8", (int*)  ls->N_DPort, 0);
-	OCI_BindArrayOfBigInts(st, ":p9", (big_int*)  ls->Packets, 0);
-	OCI_BindArrayOfBigInts(st, ":p10", (big_int*)  ls->Bytes, 0);
-	OCI_BindArrayOfBigInts(st, ":p11", (big_int*)  ls->Count, 0);
+	OCI_BindArraySetSize(st, JP_RateActionStatistics->GetDBLogSize());
+	OCI_BindArrayOfInts(st, ":p0", (int*)  ls->SensorID, 0);
+	OCI_BindArrayOfInts(st, ":p1", (int*)  ls->ActionID, 0);
+	OCI_BindArrayOfInts(st, ":p2", (int*)  ls->Packets, 0);
+	OCI_BindArrayOfInts(st, ":p3", (int*)  ls->Bytes, 0);
+	OCI_BindArrayOfInts(st, ":p4", (int*)  ls->Count, 0);
 
 	if (!JP_db->Execute())
 	{
@@ -647,8 +578,198 @@ bool JC_Logger_DatabaseWriter::prepareQuery_DIDS_TopStatistics()
 		return false;
 	}
 	JP_db->Finalize();
-	JP_Logger->Log("logging %7d records Tops in %7lu ms.", JP_Trends->GetDBLogSize(), GetTickCount() - lng);
-	JP_Trends->FreeDBLists();
-	*/
+	JP_Logger->Log("logging %7d records Rate in %7lu ms.", JP_RateActionStatistics->GetDBLogSize(), GetTickCount() - lng);
+	JP_RateActionStatistics->FreeDBLists();
 	return true;
+}
+//-----------------------------------------------------------------------------
+void JC_Logger_DatabaseWriter::Create_IDS_Vector(JS_IDS_Vector * vector)
+{
+	vector->ACTIONID 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->DT 			= (OCI_Date**)JGetMem(sizeof(OCI_Date*) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->MID 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->SENSORID 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->PROTOCOL 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->SIP 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->DIP 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->SPORT 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->DPORT 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->SCOUNTRY 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->DCOUNTRY 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->PACKET 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->BYTE 		= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	vector->DIRECTION 	= (int *)JGetMem(sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+
+	for (int i=0; i<JP_Config->GetConfig()->Logger.OracleBulkSize; i++)
+		vector->DT[i] = OCI_DateCreate(NULL);
+}
+//-----------------------------------------------------------------------------
+void JC_Logger_DatabaseWriter::Clear_IDS_Vector(JS_IDS_Vector * vector)
+{
+	for (int i=0; i<JP_Config->GetConfig()->Logger.OracleBulkSize; i++)
+		 OCI_DateFree(vector->DT[i]);
+
+	JFreeMem(vector->ACTIONID, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->DT, 		sizeof(OCI_Date*) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->MID, 		sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->SENSORID, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->PROTOCOL, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->SIP, 		sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->DIP, 		sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->SPORT, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->DPORT, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->SCOUNTRY, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->DCOUNTRY, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->PACKET, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->BYTE, 		sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	JFreeMem(vector->DIRECTION, sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+}
+//-----------------------------------------------------------------------------
+JS_IDS_Vector * JC_Logger_DatabaseWriter::Dump_DIDSVector()
+{
+	JS_IDS_Vector * vector = (JS_IDS_Vector *)JGetMem(sizeof(JS_IDS_Vector));
+	Create_IDS_Vector(vector);
+
+	for (int i=0; i<JP_Config->GetConfig()->Logger.OracleBulkSize; i++)
+		OCI_DateAssign(vector->DT[i], JP_IDS_Vector.DT[i]);
+
+	memcpy(vector->ACTIONID, 	JP_IDS_Vector.ACTIONID, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->MID, 		JP_IDS_Vector.MID, 			sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->SENSORID, 	JP_IDS_Vector.SENSORID, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->PROTOCOL, 	JP_IDS_Vector.PROTOCOL, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->SIP, 		JP_IDS_Vector.SIP, 			sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->DIP, 		JP_IDS_Vector.DIP, 			sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->SPORT, 		JP_IDS_Vector.SPORT, 		sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->DPORT, 		JP_IDS_Vector.DPORT, 		sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->SCOUNTRY, 	JP_IDS_Vector.SCOUNTRY, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->DCOUNTRY, 	JP_IDS_Vector.DCOUNTRY, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->PACKET, 		JP_IDS_Vector.PACKET, 		sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->BYTE, 		JP_IDS_Vector.BYTE, 		sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	memcpy(vector->DIRECTION, 	JP_IDS_Vector.DIRECTION, 	sizeof(int) * JP_Config->GetConfig()->Logger.OracleBulkSize);
+	return vector;
+}
+//-----------------------------------------------------------------------------
+void JC_Logger_DatabaseWriter::FastbitLogger()
+{
+	static int iii = 0;
+    bool HourChanged = JP_LastHour != GetCurrentHour();
+    iii ++;
+    nr.clear();
+	nr.longsnames.push_back("DT");				nr.longsvalues.push_back(time(NULL));
+	nr.intsnames.push_back("MID");				nr.intsvalues.push_back(JP_Row->log.DIDS.MID);
+	nr.intsnames.push_back("SENSORID");			nr.intsvalues.push_back(JP_Row->log.DIDS.SENSORID);
+	nr.ushortsnames.push_back("PROTOCOL");		nr.ushortsvalues.push_back(JP_Row->log.DIDS.PROTOCOL);
+	nr.longsnames.push_back("SIP");				nr.longsvalues.push_back(JP_Row->log.DIDS.SIP);
+	nr.longsnames.push_back("DIP");				nr.longsvalues.push_back(JP_Row->log.DIDS.DIP);
+	nr.ushortsnames.push_back("SPORT");			nr.ushortsvalues.push_back(JP_Row->log.DIDS.SPORT);
+	nr.ushortsnames.push_back("DPORT");			nr.ushortsvalues.push_back(JP_Row->log.DIDS.DPORT);
+	nr.ushortsnames.push_back("SCOUNTRY");		nr.ushortsvalues.push_back(JP_Row->log.DIDS.SCOUNTRY);
+	nr.ushortsnames.push_back("DCOUNTRY");		nr.ushortsvalues.push_back(JP_Row->log.DIDS.DCOUNTRY);
+	nr.ushortsnames.push_back("ACTIONID");		nr.ushortsvalues.push_back(JP_Row->log.DIDS.ACTIONID);
+	nr.longsnames.push_back("PACKET");			nr.longsvalues.push_back(JP_Row->log.DIDS.PACKET);
+	nr.longsnames.push_back("BYTE");			nr.longsvalues.push_back(JP_Row->log.DIDS.BYTE);
+	nr.ushortsnames.push_back("DIRECTION");		nr.ushortsvalues.push_back(JP_Row->log.DIDS.direction);
+	nr.ushortsnames.push_back("SEVERITY");		nr.ushortsvalues.push_back(JP_Row->log.DIDS.SEVERITY);
+	nr.ushortsnames.push_back("TYPE");			nr.ushortsvalues.push_back(JP_Row->log.DIDS.anomaliy);
+	nr.ushortsnames.push_back("MODULE");		nr.ushortsvalues.push_back(JP_Row->log.DIDS.module);
+	ta->appendRow(nr);
+
+	if (iii == JP_Config->GetConfig()->Logger.FastbitBulkSize || HourChanged)
+	{
+		long t_start = GetTickCount();
+
+		ta->write(JP_FastbitStorageDirectory, JP_FastbitStorageDirectory, "Table created for");
+	    JP_Logger->Log("logging %d records in %lu ms to %s.",
+	    		iii,
+	    		GetTickCount() - t_start,
+	    		JP_FastbitStorageDirectory);
+		ta->clearData();
+
+
+		std::auto_ptr<ibis::table>  tbl(ibis::table::create(JP_FastbitStorageDirectory));
+		if (tbl.get() != 0)
+		{
+			tbl->buildIndexes(0);
+		    JP_Logger->Log("make build in %lu.", GetTickCount() - t_start);
+		}
+
+		if (HourChanged)
+		{
+			JP_LastHour = GetCurrentHour();
+		    sprintf(JP_FastbitStorageDirectory, "%s/%s", JP_Config->GetConfig()->Logger.FastbitPath, SetNow(true));
+		}
+		iii=0;
+	}
+}
+//-----------------------------------------------------------------------------
+void JC_Logger_DatabaseWriter::OracleLogger()
+{
+	OCI_DateSysDate(JP_IDS_Vector.DT[JP_IDS_Vector_Index]);
+	JP_IDS_Vector.MID[JP_IDS_Vector_Index] 		 	= JP_Row->log.DIDS.MID;
+	JP_IDS_Vector.SENSORID[JP_IDS_Vector_Index] 	= JP_Row->log.DIDS.SENSORID;
+	JP_IDS_Vector.PROTOCOL[JP_IDS_Vector_Index] 	= JP_Row->log.DIDS.PROTOCOL;
+	JP_IDS_Vector.SIP[JP_IDS_Vector_Index] 			= JP_Row->log.DIDS.SIP;
+	JP_IDS_Vector.DIP[JP_IDS_Vector_Index] 			= JP_Row->log.DIDS.DIP;
+	JP_IDS_Vector.SPORT[JP_IDS_Vector_Index] 		= JP_Row->log.DIDS.SPORT;
+	JP_IDS_Vector.DPORT[JP_IDS_Vector_Index] 		= JP_Row->log.DIDS.DPORT;
+	JP_IDS_Vector.SCOUNTRY[JP_IDS_Vector_Index] 	= JP_Row->log.DIDS.SCOUNTRY;
+	JP_IDS_Vector.DCOUNTRY[JP_IDS_Vector_Index] 	= JP_Row->log.DIDS.DCOUNTRY;
+	JP_IDS_Vector.ACTIONID[JP_IDS_Vector_Index] 	= JP_Row->log.DIDS.ACTIONID;
+	JP_IDS_Vector.PACKET[JP_IDS_Vector_Index] 		= JP_Row->log.DIDS.PACKET;
+	JP_IDS_Vector.BYTE[JP_IDS_Vector_Index] 		= JP_Row->log.DIDS.BYTE;
+	JP_IDS_Vector.DIRECTION[JP_IDS_Vector_Index] 		= JP_Row->log.DIDS.direction;
+	JP_IDS_Vector_Index++;
+	if (JP_IDS_Vector_Index == JP_Config->GetConfig()->Logger.OracleBulkSize)
+	{
+		JP_IDS_Vector_Index = 0;
+		//JP_IDS_Vector_Cach = Dump_DIDSVector();
+		//pthread_t t;
+		//pthread_create(&t, 0, thread_Write_DIDS_TO_DB, this);
+
+		OCI_Statement	* st;
+		OCI_Error		* err;
+		timeb tb;
+
+
+		ftime(&tb);
+		long t_start = tb.millitm + (tb.time & 0xfffff) * 1000;
+		if (!JP_db->PreperSQL("INSERT INTO dids_ATTACKS(DT,MID,SENSORID,PROTOCOL,SIP,DIP,SPORT,DPORT,SCOUNTRY,DCOUNTRY,ACTIONID,PACKET,BYTE,DIRECTION) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"))
+		{
+			JP_Logger->Log("Could not Prepare Statement");
+			return ;
+		}
+
+		st = ((MC_Oracle *)JP_db)->Get_Statement();
+		OCI_BindArraySetSize(st, JP_Config->GetConfig()->Logger.OracleBulkSize);
+
+		OCI_BindArrayOfDates  (st, ":p0", (OCI_Date**)				JP_IDS_Vector.DT, 0);
+		OCI_BindArrayOfInts   (st, ":p1", (int*)  					JP_IDS_Vector.MID, 0);
+		OCI_BindArrayOfInts   (st, ":p2", (int*)  					JP_IDS_Vector.SENSORID, 0);
+		OCI_BindArrayOfInts   (st, ":p3", (int*)  					JP_IDS_Vector.PROTOCOL, 0);
+		OCI_BindArrayOfUnsignedInts   (st, ":p4", (unsigned int*)  	JP_IDS_Vector.SIP, 0);
+		OCI_BindArrayOfUnsignedInts   (st, ":p5", (unsigned int*)  	JP_IDS_Vector.DIP, 0);
+		OCI_BindArrayOfInts   (st, ":p6", (int*)  					JP_IDS_Vector.SPORT, 0);
+		OCI_BindArrayOfInts   (st, ":p7", (int*)  					JP_IDS_Vector.DPORT, 0);
+		OCI_BindArrayOfInts   (st, ":p8", (int*)  					JP_IDS_Vector.SCOUNTRY, 0);
+		OCI_BindArrayOfInts   (st, ":p9", (int*)  					JP_IDS_Vector.DCOUNTRY, 0);
+		OCI_BindArrayOfInts   (st, ":p10",(int*)  					JP_IDS_Vector.ACTIONID, 0);
+		OCI_BindArrayOfInts   (st, ":p11",(int*)  					JP_IDS_Vector.PACKET, 0);
+		OCI_BindArrayOfInts   (st, ":p12",(int*)  					JP_IDS_Vector.BYTE, 0);
+		OCI_BindArrayOfInts   (st, ":p13",(int*)  					JP_IDS_Vector.DIRECTION, 0);
+
+		if (!OCI_Execute(st))
+		{
+			JP_Logger->Log("Number of DML array errors : %d", OCI_GetBatchErrorCount(st));
+			err = OCI_GetBatchError(st);
+			while (err)
+			{
+				JP_Logger->Log("Error at row %d : %s", OCI_ErrorGetRow(err), OCI_ErrorGetString(err));
+				err = OCI_GetBatchError(st);
+			}
+		}
+		JP_db->Finalize();
+		ftime(&tb);
+		long t_end = tb.millitm + (tb.time & 0xfffff) * 1000;
+	    JP_Logger->Log("logging %d records in %lu ms.", JP_Config->GetConfig()->Logger.OracleBulkSize, t_end - t_start);
+	}
 }

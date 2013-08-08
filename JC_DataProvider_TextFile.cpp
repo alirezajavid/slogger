@@ -24,7 +24,6 @@ void JC_DataProvider_TextFile::End()
 //-----------------------------------------------------------------------------
 bool JC_DataProvider_TextFile::BeginRecive()
 {
-    struct stat st;
     DIR *dp;
     struct dirent *dirp;
     char filename[MCONST_MAXCHARBUF];

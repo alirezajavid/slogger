@@ -1,6 +1,8 @@
 #include "JC_DatabseFactory.h"
 
 MI_Database * GetDataBase(JC_Config* config, JI_CgiLogger * logger, JE_Database_Type  dbType){
+	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+	pthread_mutex_lock(&mutex);
 	bool b = false;
 	JC_DatabseFactory * r;
 	MI_Database * db;
@@ -47,5 +49,6 @@ MI_Database * GetDataBase(JC_Config* config, JI_CgiLogger * logger, JE_Database_
 		delete db;
 		db = 0;
 	}
+	pthread_mutex_unlock(&mutex);
 	return db;
 }
